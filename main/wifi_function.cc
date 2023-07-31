@@ -13,8 +13,8 @@
 
 #include "wifi_function.h"
 
-#define EXAMPLE_ESP_WIFI_SSID      "SHAW-B6B9"
-#define EXAMPLE_ESP_WIFI_PASS      "bottle5258daisy"
+#define EXAMPLE_ESP_WIFI_SSID      "XXXXXXXX"
+#define EXAMPLE_ESP_WIFI_PASS      "XXXXXXXXXX"
 #define EXAMPLE_ESP_MAXIMUM_RETRY  10
 /* The event group allows multiple bits for each event, but we only care about two events:
  * - we are connected to the AP with an IP

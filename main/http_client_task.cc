@@ -156,19 +156,6 @@ void read_i2s();
 void http_client_post_chunked(void *pPar)
 {
     ESP_LOGI(HTTP_CLIENT_TAG, "in the http_client_post_chunked");
-    // RingbufHandle_t *rb = (RingbufHandle_t*)pPar;
-    
-    // size_t feature_buffer_size = SAMPLE_RATE; //save 1 second data
-    
-    // char* data = (char *)calloc(feature_buffer_size, sizeof(char));
-    
-    // if (data == NULL) {
-    //     ESP_LOGI(HTTP_CLIENT_TAG, "data pointer allocate is failed");
-    //     ESP_LOGI(HTTP_CLIENT_TAG, "feature_buffer_size is %d", feature_buffer_size );
-    // }else{
-    //     ESP_LOGI(HTTP_CLIENT_TAG, "http_client_post_chunked buffer address is %p", (void *)&data);
-    //     ESP_LOGI(HTTP_CLIENT_TAG, "after copy data value is: %c", data[0]);
-    // }
    
     char local_response_buffer[MAX_HTTP_OUTPUT_BUFFER] = {0};
 
@@ -202,8 +189,6 @@ void http_client_post_chunked(void *pPar)
         ESP_LOGI(HTTP_CLIENT_TAG, "stat posting data, err code is %d", err);
         if (err == ESP_OK)
         {
-            //read i2s sound
-            // read_i2s();
             
             char * r_buf = (char *)calloc(2*SAMPLE_RATE, sizeof(uint16_t));
             size_t r_samples = 2*SAMPLE_RATE*sizeof(uint16_t);
@@ -228,6 +213,88 @@ void http_client_post_chunked(void *pPar)
         // vTaskDelay(pdMS_TO_TICKS(500));
     }
 }
+
+void init_i2s_simple(){
+    i2s_example_init_std_simplex(SAMPLE_RATE);
+}
+
+void http_client_post_sound(void *pPar)
+{
+    ESP_LOGI(HTTP_CLIENT_TAG, "in the http_client_post_sound");
+    char local_response_buffer[MAX_HTTP_OUTPUT_BUFFER] = {0};
+    init_i2s_simple();
+    while(1){
+
+        esp_http_client_config_t config = {
+            // .url = LOCAL_URL,
+            .host = "10.0.0.55",
+            .port = 8888,
+            .path = "/upload",
+            .disable_auto_redirect = true,
+            .event_handler = _http_event_handler,
+            .user_data = local_response_buffer, // Pass address of local buffer to get response
+               
+            };
+        esp_http_client_handle_t client = esp_http_client_init(&config);
+        
+        esp_http_client_set_method(client, HTTP_METHOD_POST);
+
+        esp_http_client_set_header(client, "Transfer-Encoding", "chunked");
+        esp_http_client_set_header(client, "x-audio-sample-rates", "16000");
+        esp_http_client_set_header(client, "x-audio-bits", "16");
+        esp_http_client_set_header(client, "x-audio-channel", "1");
+
+        uint32_t ulNotificationValue;
+        xTaskNotifyWait(0, 0xffffffff, &ulNotificationValue, portMAX_DELAY);
+
+        esp_err_t err = esp_http_client_open(client, -1); // write_len=-1 sets header "Transfer-Encoding: chunked" and method to POST
+        ESP_LOGI(HTTP_CLIENT_TAG, "stat posting data, err code is %d", err);
+        if (err == ESP_OK)
+        {
+            int samples_per_ms = SAMPLE_RATE/1000;
+            int c_loops = 40; //30ms * 160 * 40 = 192000
+            int total_length = 30 * samples_per_ms * c_loops;
+            int total_bytes = total_length * sizeof(uint16_t);
+
+            char * final_buf = (char *)calloc(total_length, sizeof(uint16_t));
+
+            char * s30_buf = (char *)calloc(30*samples_per_ms, sizeof(uint16_t)); //30ms sound
+            size_t s30_samples = 30*samples_per_ms*sizeof(uint16_t);
+
+            char *dest = final_buf;
+            int move_size = total_bytes - s30_samples;
+
+            char *src = final_buf + s30_samples ;
+            char *new_data = dest + move_size;
+
+            for(int i = 0; i <=c_loops; i ++){
+                i2s_example_read_task(s30_buf, s30_samples);
+                // move data to front 
+                memmove(dest, src, move_size);
+                memcpy(new_data, s30_buf, s30_samples);
+                vTaskDelay(pdMS_TO_TICKS(30));
+
+            };
+            free(s30_buf);
+
+            int data_length = post_chunk_data(final_buf, total_bytes, client);
+            
+            ESP_LOGI(HTTP_CLIENT_TAG, "post_chunk is done. Send data: %d", data_length);
+                    
+            // get_http_response(local_response_buffer, client);
+            free(final_buf);
+            esp_http_client_close(client);
+        }
+        else
+        {
+            ESP_LOGE(HTTP_CLIENT_TAG, "HTTP POST request failed: %s", esp_err_to_name(err));
+        }
+
+        esp_http_client_cleanup(client);
+        vTaskDelay(pdMS_TO_TICKS(500));
+    }
+}
+
 
 int post_chunk_data(char *data, size_t buffer_size,  esp_http_client_handle_t http_client)
 {

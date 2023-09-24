@@ -11,6 +11,7 @@
 #include "led_irt.h"
 #include "wifi_function.h"
 #include "http_client_task.h"
+#include "feature_extract.h"
 
 static const char *TAG = "Main Function";
 
@@ -37,6 +38,9 @@ extern "C" void app_main(void)
         set_isr_http_client_notify_handle(&r_irs_http_client_handle);
         //delay 40 ms to initiate the GPIO
         vTaskDelay(pdMS_TO_TICKS(40));
+
+        xTaskCreatePinnedToCore(feature_extract_task, "feature extract", 1024*2, NULL, 5, NULL, 1);
+        ESP_LOGI(TAG, "create freature extract task");
        
 
     }

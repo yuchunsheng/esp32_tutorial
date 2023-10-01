@@ -7,7 +7,7 @@ extern "C" {
 #endif
 
     void http_client_post_chunked(void * pPar);
-    void http_client_post_sound(void *pPar);
+    // void http_client_post_sound(void *pPar);
 
 #ifdef __cplusplus
 }

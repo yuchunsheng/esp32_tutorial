@@ -1,24 +1,10 @@
-#include <string.h>
+#include "http_feature_post.h"
+
 #include <sys/param.h>
-#include <stdlib.h>
-#include <ctype.h>
-#include "freertos/FreeRTOS.h"
-#include "freertos/event_groups.h"
-#include "freertos/ringbuf.h"
-#include "esp_wifi.h"
-#include "esp_event.h"
-#include "esp_log.h"
-#include "esp_system.h"
-#include "nvs_flash.h"
+
 #include "esp_http_client.h"
+#include "esp_log.h"
 #include "esp_tls.h"
-
-#include "http_client_task.h"
-#include "wifi_function.h"
-#include "config.h"
-
-#include "audio_task.h"
-
 
 #define MAX_HTTP_RECV_BUFFER 1024*2
 #define MAX_HTTP_OUTPUT_BUFFER 1024*2
@@ -27,7 +13,6 @@
 
 const char *HTTP_CLIENT_TAG = "http client";
 const char *LOCAL_URL = "http://10.0.0.55:8888";
-
 
 esp_err_t _http_event_handler(esp_http_client_event_t *evt)
 {
@@ -38,7 +23,6 @@ esp_err_t _http_event_handler(esp_http_client_event_t *evt)
     case HTTP_EVENT_ERROR:{
         ESP_LOGD(HTTP_CLIENT_TAG, "HTTP_EVENT_ERROR");
         break;
-
     }
         
     case HTTP_EVENT_ON_CONNECTED:{
@@ -62,9 +46,9 @@ esp_err_t _http_event_handler(esp_http_client_event_t *evt)
     case HTTP_EVENT_ON_DATA:{
         ESP_LOGD(HTTP_CLIENT_TAG, "HTTP_EVENT_ON_DATA, len=%d", evt->data_len);
         /*
-         *  Check for chunked encoding is added as the URL for chunked encoding used in this example returns binary data.
-         *  However, event handler can also be used in case chunked encoding is used.
-         */
+        *  Check for chunked encoding is added as the URL for chunked encoding used in this example returns binary data.
+        *  However, event handler can also be used in case chunked encoding is used.
+        */
         if (!esp_http_client_is_chunked_response(evt->client))
         {
             // If user_data buffer is configured, copy the response into the buffer
@@ -148,76 +132,6 @@ esp_err_t _http_event_handler(esp_http_client_event_t *evt)
     }
     return ESP_OK;
 }
-
-int post_chunk_data(char *data, size_t buffer_size,  esp_http_client_handle_t http_client);
-void get_http_response(char * local_response_buffer, esp_http_client_handle_t client);
-void read_i2s();
-
-void http_client_post_chunked(void *pPar)
-{
-    ESP_LOGI(HTTP_CLIENT_TAG, "in the http_client_post_chunked");
-   
-    char local_response_buffer[MAX_HTTP_OUTPUT_BUFFER] = {0};
-
-    i2s_example_init_std_simplex(SAMPLE_RATE);
-    
-    while(1){
-
-        esp_http_client_config_t config = {
-            // .url = LOCAL_URL,
-            .host = "10.0.0.55",
-            .port = 8888,
-            .path = "/upload",
-            .disable_auto_redirect = true,
-            .event_handler = _http_event_handler,
-            .user_data = local_response_buffer, // Pass address of local buffer to get response
-               
-        };
-        esp_http_client_handle_t client = esp_http_client_init(&config);
-    
-        esp_http_client_set_method(client, HTTP_METHOD_POST);
-
-        esp_http_client_set_header(client, "Transfer-Encoding", "chunked");
-        esp_http_client_set_header(client, "x-audio-sample-rates", "16000");
-        esp_http_client_set_header(client, "x-audio-bits", "16");
-        esp_http_client_set_header(client, "x-audio-channel", "1");
-        
-        uint32_t ulNotificationValue;
-        xTaskNotifyWait(0, 0xffffffff, &ulNotificationValue, portMAX_DELAY);
-
-        esp_err_t err = esp_http_client_open(client, -1); // write_len=-1 sets header "Transfer-Encoding: chunked" and method to POST
-        ESP_LOGI(HTTP_CLIENT_TAG, "stat posting data, err code is %d", err);
-        if (err == ESP_OK)
-        {
-            
-            char * r_buf = (char *)calloc(2*SAMPLE_RATE, sizeof(uint16_t));
-            size_t r_samples = 2*SAMPLE_RATE*sizeof(uint16_t);
-            assert(r_buf); // Check if r_buf allocation success
-            i2s_example_read_task(r_buf, r_samples);
-            vTaskDelay(pdMS_TO_TICKS(1100));
-
-            int data_length = post_chunk_data(r_buf, r_samples, client);
-            
-            ESP_LOGI(HTTP_CLIENT_TAG, "post_chunk is done. Send data: %d", data_length);
-                    
-            // get_http_response(local_response_buffer, client);
-            free(r_buf);
-            esp_http_client_close(client);
-        }
-        else
-        {
-            ESP_LOGE(HTTP_CLIENT_TAG, "HTTP POST request failed: %s", esp_err_to_name(err));
-        }
-
-        esp_http_client_cleanup(client);
-        // vTaskDelay(pdMS_TO_TICKS(500));
-    }
-}
-
-void init_i2s_simple(){
-    i2s_example_init_std_simplex(SAMPLE_RATE);
-}
-
 
 int post_chunk_data(char *data, size_t buffer_size,  esp_http_client_handle_t http_client)
 {
@@ -337,6 +251,52 @@ void get_http_response(char * local_response_buffer, esp_http_client_handle_t cl
     ESP_LOGI(HTTP_CLIENT_TAG, "Response: %s", local_response_buffer);
 }
 
-void read_i2s(){
-    ESP_LOGI(HTTP_CLIENT_TAG, "Reading INMP441");
+void http_feature_post(void *pPar){
+    ESP_LOGI(HTTP_CLIENT_TAG, "in the http_feature_post task");
+   
+    char local_response_buffer[MAX_HTTP_OUTPUT_BUFFER] = {0};
+    esp_http_client_config_t config = {
+        // .url = LOCAL_URL,
+        .host = "10.0.0.55",
+        .port = 8888,
+        .path = "/upload",
+        .disable_auto_redirect = true,
+        .event_handler = _http_event_handler,
+        .user_data = local_response_buffer, // Pass address of local buffer to get response
+            
+    };
+    esp_http_client_handle_t client = esp_http_client_init(&config);
+
+    esp_http_client_set_method(client, HTTP_METHOD_POST);
+
+    esp_http_client_set_header(client, "Transfer-Encoding", "chunked");
+    esp_http_client_set_header(client, "x-audio-sample-rates", "16000");
+    esp_http_client_set_header(client, "x-audio-bits", "16");
+    esp_http_client_set_header(client, "x-audio-channel", "1");
+    
+    while(1){
+        xTaskNotifyWait(0, 0xffffffff, NULL, portMAX_DELAY);
+        esp_err_t err = esp_http_client_open(client, -1); // write_len=-1 sets header "Transfer-Encoding: chunked" and method to POST
+        ESP_LOGI(HTTP_CLIENT_TAG, "stat posting data, err code is %d", err);
+        if (err == ESP_OK)
+        {
+            int samples_per_ms = SAMPLE_RATE/1000;
+            int total_length = 1000 * samples_per_ms;
+            int total_bytes = total_length * sizeof(uint16_t);
+
+            char * final_buf = (char *)calloc(total_length, sizeof(uint16_t));
+
+            int data_length = post_chunk_data(final_buf, total_bytes, client);
+            
+            ESP_LOGI(HTTP_CLIENT_TAG, "post_chunk is done. Send data: %d", data_length);
+                    
+            // get_http_response(local_response_buffer, client);
+            free(final_buf);
+            esp_http_client_close(client);
+        }
+
+    }
+
+    esp_http_client_cleanup(client);
+    vTaskDelay(pdMS_TO_TICKS(500));
 }

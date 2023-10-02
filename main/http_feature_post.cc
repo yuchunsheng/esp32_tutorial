@@ -5,6 +5,7 @@
 #include "esp_http_client.h"
 #include "esp_log.h"
 #include "esp_tls.h"
+#include "global.h"
 
 #define MAX_HTTP_RECV_BUFFER 1024*2
 #define MAX_HTTP_OUTPUT_BUFFER 1024*2
@@ -252,6 +253,14 @@ void get_http_response(char * local_response_buffer, esp_http_client_handle_t cl
 }
 
 void http_feature_post(void *pPar){
+    TaskParameters *params = (TaskParameters *)pPar;
+    RingbufHandle_t input_ring_buffer = params->input_ring_buffer;
+    RingbufHandle_t output_ring_buffer = params->output_ring_buffer;
+
+    
+    char * final_buf = (char *)calloc(FEATURE_RING_BUFFER_SIZE, sizeof(char*));
+    size_t total_bytes = FEATURE_RING_BUFFER_SIZE;
+
     ESP_LOGI(HTTP_CLIENT_TAG, "in the http_feature_post task");
    
     char local_response_buffer[MAX_HTTP_OUTPUT_BUFFER] = {0};
@@ -275,24 +284,43 @@ void http_feature_post(void *pPar){
     esp_http_client_set_header(client, "x-audio-channel", "1");
     
     while(1){
-        xTaskNotifyWait(0, 0xffffffff, NULL, portMAX_DELAY);
-        esp_err_t err = esp_http_client_open(client, -1); // write_len=-1 sets header "Transfer-Encoding: chunked" and method to POST
-        ESP_LOGI(HTTP_CLIENT_TAG, "stat posting data, err code is %d", err);
-        if (err == ESP_OK)
-        {
-            int samples_per_ms = SAMPLE_RATE/1000;
-            int total_length = 1000 * samples_per_ms;
-            int total_bytes = total_length * sizeof(uint16_t);
+        
+        //wait for 10ms for the button event
+        if(xTaskNotifyWait(0, 0xffffffff, NULL, pdMS_TO_TICKS(10)) == pdTRUE){
+            esp_err_t err = esp_http_client_open(client, -1); // write_len=-1 sets header "Transfer-Encoding: chunked" and method to POST
+            ESP_LOGI(HTTP_CLIENT_TAG, "stat posting data, err code is %d", err);
+            if (err == ESP_OK)
+            {
+                
+                int data_length = post_chunk_data(final_buf, total_bytes, client);
+                
+                ESP_LOGI(HTTP_CLIENT_TAG, "post_chunk is done. Send data: %d", data_length);
+                        
+                // get_http_response(local_response_buffer, client);
+                free(final_buf);
+                esp_http_client_close(client);
+            }
 
-            char * final_buf = (char *)calloc(total_length, sizeof(uint16_t));
+        }else{
+            //Receive an item from no-split ring buffer
+            size_t input_samples ;
+            char *item = (char *)xRingbufferReceive(input_ring_buffer, &input_samples, pdMS_TO_TICKS(1000));
+            //Check received item
+            if (item != NULL) {
+                //Print item
+                for (int i = 0; i < input_samples; i++) {
+                    printf("%c", item[i]);
+                }
+                printf("\n");
+                //Return Item
+                // vRingbufferReturnItem(buf_handle, (void *)item);
+            } else {
+                //Failed to receive item
+                printf("Failed to receive item\n");
+            }
 
-            int data_length = post_chunk_data(final_buf, total_bytes, client);
-            
-            ESP_LOGI(HTTP_CLIENT_TAG, "post_chunk is done. Send data: %d", data_length);
-                    
-            // get_http_response(local_response_buffer, client);
-            free(final_buf);
-            esp_http_client_close(client);
+            vTaskDelay(pdMS_TO_TICKS(10));
+
         }
 
     }

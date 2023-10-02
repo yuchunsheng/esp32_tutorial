@@ -5,33 +5,42 @@
 
 #include "feature_extract.h"
 #include "audio_task.h"
+#include "global.h"
 
 #define TAG "Feature Extract Task"
-#define SAMPLE_RATE 16000
-#define PERIOD 10  //10 ms sound
+// #define SAMPLE_RATE 16000
+// #define PERIOD 10  //10 ms sound
 
 void feature_extract_task(void *pPar)
 {
+    TaskParameters *params = (TaskParameters *)pPar;
+    RingbufHandle_t input_ring_buffer = params->input_ring_buffer;
+    RingbufHandle_t output_ring_buffer = params->output_ring_buffer;
+
     ESP_LOGI(TAG, "start feature extract task");
-    i2s_example_init_std_simplex(SAMPLE_RATE);
-
-    //read 10ms sound
-    char * r_buf = (char *)calloc(2*PERIOD, sizeof(uint16_t));
-    size_t r_samples = 2*PERIOD*sizeof(uint16_t);
-    assert(r_buf); // Check if r_buf allocation success
-    //store 30ms sound to do FFT
-    char * feature_buf = (char *)calloc(2*3*PERIOD, sizeof(uint16_t));
-    size_t feature_samples = 2*3*PERIOD*sizeof(uint16_t);
-    assert(feature_buf); // Check if r_buf allocation success
-
+    
+    
     while(1){
+        size_t input_samples ;
+        char *item = (char *)xRingbufferReceive(input_ring_buffer, &input_samples, pdMS_TO_TICKS(1000));
+        //Check received item
+        if (item != NULL) {
+            //Print item
+            for (int i = 0; i < input_samples; i++) {
+                printf("%c", item[i]);
+            }
+            printf("\n");
+            // Return Item
+            vRingbufferReturnItem(input_ring_buffer, (void *)item);
+        } else {
+            //Failed to receive item
+            printf("Failed to receive item\n");
+        }
 
-        i2s_example_read_task(r_buf, r_samples);
-
-        vTaskDelay(pdMS_TO_TICKS(1000));
+    
+        vTaskDelay(pdMS_TO_TICKS(500));
     }
 
-    free(r_buf);
     vTaskDelete(NULL);
     
 }

@@ -14,31 +14,34 @@
 void feature_extract_task(void *pPar)
 {
     TaskParameters *params = (TaskParameters *)pPar;
-    RingbufHandle_t input_ring_buffer = params->input_ring_buffer;
-    RingbufHandle_t output_ring_buffer = params->output_ring_buffer;
+    RingbufHandle_t audio_ring_buffer = params->audio_ring_buffer;
+    RingbufHandle_t feature_ring_buffer = params->feature_ring_buffer;
 
     ESP_LOGI(TAG, "start feature extract task");
     
-    
     while(1){
         size_t input_samples ;
-        char *item = (char *)xRingbufferReceive(input_ring_buffer, &input_samples, pdMS_TO_TICKS(1000));
+        char *item = (char *)xRingbufferReceive(audio_ring_buffer, &input_samples, pdMS_TO_TICKS(10));
         //Check received item
         if (item != NULL) {
             //Print item
-            for (int i = 0; i < input_samples; i++) {
-                printf("%c", item[i]);
+            // for (int i = 0; i < input_samples; i++) {
+            //     printf("%c", item[i]);
+            // }
+            // ESP_LOGI(TAG, "input samples : %d", input_samples);
+            UBaseType_t res =  xRingbufferSend(feature_ring_buffer, item, input_samples, pdMS_TO_TICKS(10));
+            if (res != pdTRUE) {
+                printf("Failed to send item from feature task \n");
             }
-            printf("\n");
+
             // Return Item
-            vRingbufferReturnItem(input_ring_buffer, (void *)item);
+            vRingbufferReturnItem(audio_ring_buffer, (void *)item);
         } else {
             //Failed to receive item
             printf("Failed to receive item\n");
         }
-
     
-        vTaskDelay(pdMS_TO_TICKS(500));
+        vTaskDelay(pdMS_TO_TICKS(10));
     }
 
     vTaskDelete(NULL);

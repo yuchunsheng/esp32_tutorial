@@ -86,26 +86,19 @@ void i2s_example_read_task(char *r_buf, size_t r_samples)
 }
 
 
-
 void audio_input_task(void *pPar)
 {
     ESP_LOGI(TAG, "start audio input task");
     TaskParameters *params = (TaskParameters *)pPar;
-    RingbufHandle_t input_ring_buffer = params->input_ring_buffer;
-    RingbufHandle_t output_ring_buffer = params->output_ring_buffer;
-    // uint8_t data = 0;
+    RingbufHandle_t audio_ring_buffer = params->audio_ring_buffer;
+    RingbufHandle_t feature_ring_buffer = params->feature_ring_buffer;
 
     i2s_example_init_std_simplex(SAMPLE_RATE);
 
     //read 10ms sound
-    char * r_buf = (char *)calloc(AUDIO_RING_BUFFER_SIZE, sizeof(char *));
-    size_t r_samples = AUDIO_RING_BUFFER_SIZE;
-
-    char * tr_buf = (char *)calloc(AUDIO_RING_BUFFER_SIZE, sizeof(char *));
-    size_t tr_samples = AUDIO_RING_BUFFER_SIZE;
-
-    assert(tr_buf); // Check if r_buf allocation success
-    // RingbufHandle_t temp_ring_buffer = xRingbufferCreate(AUDIO_RING_BUFFER_SIZE, RINGBUF_TYPE_NOSPLIT);
+    char * r_buf = (char *)calloc(AUDIO_INPUT_SIZE, sizeof(char *));
+    size_t r_samples = AUDIO_INPUT_SIZE;
+    assert(r_buf); // Check if r_buf allocation success
 
     while(1){
 
@@ -114,15 +107,13 @@ void audio_input_task(void *pPar)
         /* Read i2s data */
         if (i2s_channel_read(rx_chan, r_buf, r_samples, &r_bytes, portMAX_DELAY) == ESP_OK)
         {
-            ESP_LOGI(TAG, "Read %d Bytes\n", r_bytes);
-            
-            if (input_ring_buffer == NULL) {
+            // ESP_LOGI(TAG, "Read %d Bytes\n", r_bytes);
+            if (audio_ring_buffer == NULL) {
                 printf("Failed to create ring buffer\n");
             }else{
-                static char tx_item[] = "test_item";
-                UBaseType_t res =  xRingbufferSend(input_ring_buffer, tx_item, sizeof(tx_item), pdMS_TO_TICKS(1000));
+                UBaseType_t res =  xRingbufferSend(audio_ring_buffer, r_buf, r_bytes, pdMS_TO_TICKS(10));
                 if (res != pdTRUE) {
-                    printf("Failed to send item\n");
+                    printf("Failed to send item from the audio task\n");
                 }
 
             }
@@ -132,15 +123,12 @@ void audio_input_task(void *pPar)
         {
             ESP_LOGE(TAG, "Read Task: i2s read failed\n");
         }
-        // xRingbufferSend(ring_buffer, &tr_buf, tr_samples, portMAX_DELAY);
-        // xRingbufferSend(ring_buffer, &tr_buf, tr_samples, pdMS_TO_TICKS(10));
         // ESP_LOGI(TAG, "read 10ms sound");
-        vTaskDelay(pdMS_TO_TICKS(1000)); //delay 20ms to read
+        vTaskDelay(pdMS_TO_TICKS(10)); //delay 10ms to read
 
     }
 
     free(r_buf);
-    free(tr_buf);
     vTaskDelete(NULL);
     
 }

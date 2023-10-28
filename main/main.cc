@@ -56,17 +56,24 @@ void app_main(void)
         // //delay 40 ms to initiate the GPIO
         // vTaskDelay(pdMS_TO_TICKS(40));
 
-        // xTaskCreatePinnedToCore(http_feature_post, "http feature post", 1024*10, &http_feature_post_params, 5, &r_irs_http_client_handle, 1);
-        // ESP_LOGI(TAG, "create http_client_post_chunked task");
-        // set_isr_http_client_notify_handle(&r_irs_http_client_handle);
-        // //delay 40 ms to initiate the GPIO
-        // vTaskDelay(pdMS_TO_TICKS(40));
-
         xTaskCreatePinnedToCore(audio_input_task, "audio input", 1024*2, &feature_extract_task_params, 5, NULL, 1);
         ESP_LOGI(TAG, "create freature extract task");
+        //delay 20 ms to initiate the GPIO
+        vTaskDelay(pdMS_TO_TICKS(20));
 
         xTaskCreatePinnedToCore(feature_extract_task, "feature extract", 1024*2, &feature_extract_task_params, 5, NULL, 1);
         ESP_LOGI(TAG, "create freature extract task");
+
+        //delay 30 ms to initiate the GPIO
+        vTaskDelay(pdMS_TO_TICKS(30));
+
+        xTaskCreatePinnedToCore(http_feature_post, "http feature post", 1024*40, &http_feature_post_params, 5, &r_irs_http_client_handle, 1);
+        ESP_LOGI(TAG, "create http_client_post_chunked task");
+        set_isr_http_client_notify_handle(&r_irs_http_client_handle);
+        //delay 40 ms to initiate the GPIO
+        // vTaskDelay(pdMS_TO_TICKS(40));
+
+        
 
         
 

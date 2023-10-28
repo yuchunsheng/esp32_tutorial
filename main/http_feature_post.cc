@@ -59,7 +59,7 @@ esp_err_t _http_event_handler(esp_http_client_event_t *evt)
                 copy_len = MIN(evt->data_len, (MAX_HTTP_OUTPUT_BUFFER - output_len));
                 if (copy_len)
                 {
-                    memcpy(evt->user_data + output_len, evt->data, copy_len);
+                    memcpy((char *)evt->user_data + output_len, evt->data, copy_len);
                 }
             }
             else
@@ -254,12 +254,16 @@ void get_http_response(char * local_response_buffer, esp_http_client_handle_t cl
 
 void http_feature_post(void *pPar){
     TaskParameters *params = (TaskParameters *)pPar;
-    RingbufHandle_t input_ring_buffer = params->input_ring_buffer;
-    RingbufHandle_t output_ring_buffer = params->output_ring_buffer;
+    // RingbufHandle_t audio_ring_buffer = params->audio_ring_buffer;
+    RingbufHandle_t feature_ring_buffer = params->feature_ring_buffer;
 
-    
-    char * final_buf = (char *)calloc(FEATURE_RING_BUFFER_SIZE, sizeof(char*));
-    size_t total_bytes = FEATURE_RING_BUFFER_SIZE;
+    size_t one_second_sound = 2*SAMPLE_RATE ;  //2 bytes (16 bits) and sample rate is 16000
+    char * final_buf = (char *)calloc(one_second_sound, sizeof(char*));
+    size_t total_bytes = one_second_sound;
+
+    size_t input_samples ;
+    char *item;
+
 
     ESP_LOGI(HTTP_CLIENT_TAG, "in the http_feature_post task");
    
@@ -297,33 +301,35 @@ void http_feature_post(void *pPar){
                 ESP_LOGI(HTTP_CLIENT_TAG, "post_chunk is done. Send data: %d", data_length);
                         
                 // get_http_response(local_response_buffer, client);
-                free(final_buf);
+                
                 esp_http_client_close(client);
             }
 
         }else{
             //Receive an item from no-split ring buffer
-            size_t input_samples ;
-            char *item = (char *)xRingbufferReceive(input_ring_buffer, &input_samples, pdMS_TO_TICKS(1000));
+            // size_t input_samples ;
+            item = (char *)xRingbufferReceive(feature_ring_buffer, &input_samples, pdMS_TO_TICKS(10));
             //Check received item
             if (item != NULL) {
-                //Print item
-                for (int i = 0; i < input_samples; i++) {
-                    printf("%c", item[i]);
-                }
-                printf("\n");
+                
+                // ESP_LOGI(HTTP_CLIENT_TAG, "get feature samples: %d", input_samples);
+                // memmove(dest, src, move_size);
+                memmove(final_buf, final_buf + input_samples, (one_second_sound - input_samples));
+                // memcpy(destination, source, num);
+                memcpy(final_buf + (one_second_sound - input_samples), item, input_samples);
                 //Return Item
-                // vRingbufferReturnItem(buf_handle, (void *)item);
+                vRingbufferReturnItem(feature_ring_buffer, (void *)item);
             } else {
                 //Failed to receive item
                 printf("Failed to receive item\n");
             }
 
-            vTaskDelay(pdMS_TO_TICKS(10));
+            // vTaskDelay(pdMS_TO_TICKS(10));
 
         }
 
     }
+    free(final_buf);
 
     esp_http_client_cleanup(client);
     vTaskDelay(pdMS_TO_TICKS(500));

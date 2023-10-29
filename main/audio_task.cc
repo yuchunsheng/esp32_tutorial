@@ -1,7 +1,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "freertos/ringbuf.h"
-#include "freertos/stream_buffer.h"
+// #include "freertos/ringbuf.h"
+// #include "freertos/stream_buffer.h"
 
 #include "esp_log.h"
 #include "driver/gpio.h"
@@ -90,8 +90,8 @@ void audio_input_task(void *pPar)
 {
     ESP_LOGI(TAG, "start audio input task");
     TaskParameters *params = (TaskParameters *)pPar;
-    RingbufHandle_t audio_ring_buffer = params->audio_ring_buffer;
-    RingbufHandle_t feature_ring_buffer = params->feature_ring_buffer;
+    StreamBufferHandle_t audio_stream_buffer = params->audio_stream_buffer;
+    StreamBufferHandle_t feature_stream_buffer = params->feature_stream_buffer;
 
     i2s_example_init_std_simplex(SAMPLE_RATE);
 
@@ -108,11 +108,15 @@ void audio_input_task(void *pPar)
         if (i2s_channel_read(rx_chan, r_buf, r_samples, &r_bytes, portMAX_DELAY) == ESP_OK)
         {
             // ESP_LOGI(TAG, "Read %d Bytes\n", r_bytes);
-            if (audio_ring_buffer == NULL) {
-                printf("Failed to create ring buffer\n");
+            if (audio_stream_buffer == NULL) {
+                printf("Failed to create stream buffer\n");
             }else{
-                UBaseType_t res =  xRingbufferSend(audio_ring_buffer, r_buf, r_bytes, pdMS_TO_TICKS(10));
-                if (res != pdTRUE) {
+                // UBaseType_t res =  xRingbufferSend(audio_stream_buffer, r_buf, r_bytes, pdMS_TO_TICKS(10));
+                size_t xBytesSent = xStreamBufferSend(audio_stream_buffer, r_buf, r_bytes, portMAX_DELAY);
+                
+                if (xBytesSent != r_bytes) {
+                    printf("sent bytes: %d, received bytes %d", xBytesSent, r_bytes);
+                    
                     printf("Failed to send item from the audio task\n");
                 }
 

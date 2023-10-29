@@ -2,7 +2,8 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/queue.h"
-#include "freertos/ringbuf.h"
+// #include "freertos/ringbuf.h"
+#include "freertos/stream_buffer.h"
 
 #include "driver/gpio.h"
 #include "esp_log.h"
@@ -20,12 +21,16 @@
 static const char *TAG = "Main Function";
 
 // Create a ring buffer with the specified size
-RingbufHandle_t audio_ring_buffer = xRingbufferCreate(AUDIO_RING_BUFFER_SIZE, RINGBUF_TYPE_NOSPLIT);
-RingbufHandle_t feature_ring_buffer = xRingbufferCreate(FEATURE_RING_BUFFER_SIZE, RINGBUF_TYPE_NOSPLIT);
+// RingbufHandle_t audio_ring_buffer = xRingbufferCreate(AUDIO_RING_BUFFER_SIZE, RINGBUF_TYPE_NOSPLIT);
+// RingbufHandle_t feature_ring_buffer = xRingbufferCreate(FEATURE_RING_BUFFER_SIZE, RINGBUF_TYPE_NOSPLIT);
+
+// Create a Stream Buffer handle
+StreamBufferHandle_t audio_stream_buffer = xStreamBufferCreate(AUDIO_STREAM_BUFFER_SIZE, 1);
+StreamBufferHandle_t feature_stream_buffer = xStreamBufferCreate(FEATURE_STREAM_BUFFER_SIZE, 1);
 
 // Create producer and consumer tasks with different parameters
-TaskParameters feature_extract_task_params = {audio_ring_buffer, feature_ring_buffer};
-TaskParameters http_feature_post_params = {audio_ring_buffer, feature_ring_buffer};
+TaskParameters feature_extract_task_params = {audio_stream_buffer, feature_stream_buffer};
+TaskParameters http_feature_post_params = {audio_stream_buffer, feature_stream_buffer};
 
 // Expose a C friendly interface for main functions.
 #ifdef __cplusplus

@@ -255,14 +255,15 @@ void get_http_response(char * local_response_buffer, esp_http_client_handle_t cl
 void http_feature_post(void *pPar){
     TaskParameters *params = (TaskParameters *)pPar;
     // RingbufHandle_t audio_ring_buffer = params->audio_ring_buffer;
-    RingbufHandle_t feature_ring_buffer = params->feature_ring_buffer;
+    // StreamBufferHandle_t audio_stream_buffer = params->audio_stream_buffer;
+    StreamBufferHandle_t feature_stream_buffer = params->feature_stream_buffer;
 
     size_t one_second_sound = 2*SAMPLE_RATE ;  //2 bytes (16 bits) and sample rate is 16000
     char * final_buf = (char *)calloc(one_second_sound, sizeof(char*));
     size_t total_bytes = one_second_sound;
 
     size_t input_samples ;
-    char *item;
+    char *received_data =  (char *)calloc(AUDIO_INPUT_SIZE, sizeof(char *));;
 
 
     ESP_LOGI(HTTP_CLIENT_TAG, "in the http_feature_post task");
@@ -308,17 +309,19 @@ void http_feature_post(void *pPar){
         }else{
             //Receive an item from no-split ring buffer
             // size_t input_samples ;
-            item = (char *)xRingbufferReceive(feature_ring_buffer, &input_samples, pdMS_TO_TICKS(10));
+            // item = (char *)xRingbufferReceive(feature_ring_buffer, &input_samples, pdMS_TO_TICKS(10));
+            input_samples = xStreamBufferReceive(feature_stream_buffer, received_data, FEATURE_INPUT_SIZE, portMAX_DELAY);
+
             //Check received item
-            if (item != NULL) {
+            if (input_samples > 0) {
                 
                 // ESP_LOGI(HTTP_CLIENT_TAG, "get feature samples: %d", input_samples);
                 // memmove(dest, src, move_size);
                 memmove(final_buf, final_buf + input_samples, (one_second_sound - input_samples));
                 // memcpy(destination, source, num);
-                memcpy(final_buf + (one_second_sound - input_samples), item, input_samples);
+                memcpy(final_buf + (one_second_sound - input_samples), received_data, input_samples);
                 //Return Item
-                vRingbufferReturnItem(feature_ring_buffer, (void *)item);
+                // vRingbufferReturnItem(feature_ring_buffer, (void *)item);
             } else {
                 //Failed to receive item
                 printf("Failed to receive item\n");
